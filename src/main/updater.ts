@@ -1,6 +1,8 @@
 import { app, dialog, type BrowserWindow } from 'electron'
-import { autoUpdater } from 'electron-updater'
+import electronUpdater from 'electron-updater'
 import { ipcHandle } from './ipcSerialize'
+
+const { autoUpdater } = electronUpdater
 
 /**
  * 打包后从 GitHub Releases 拉取更新（由 package.json build.publish 指定仓库）。
