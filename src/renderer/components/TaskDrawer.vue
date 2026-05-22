@@ -457,7 +457,6 @@ async function runAi() {
               </div>
             </footer>
           </div>
-        </Transition>
       </div>
     </Transition>
   </Teleport>
