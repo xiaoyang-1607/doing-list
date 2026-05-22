@@ -1,131 +1,81 @@
 # Doing List
 
-个人学习任务与日记的 Windows 桌面应用：任务分类与状态、附件图片、**感悟时间轴**（与日记「引入」按日同步），以及 OpenAI 兼容接口下的任务分析与日记复盘。
-
-**仓库**：[github.com/xiaoyang-1607/doing-list](https://github.com/xiaoyang-1607/doing-list)
+Windows 桌面应用，用于记录学习任务、管理待办，并撰写日记与复盘。
 
 ---
 
-## 下载安装（Windows）
+## 功能概览
 
-正式版安装包在 **[GitHub Releases](https://github.com/xiaoyang-1607/doing-list/releases)** 发布。
+- **Doing List**：任务分类、状态流转（待办 / 进行中 / 已完成）、详情编辑与附件图片
+- **感悟时间轴**：任务下的按日感悟记录，可与日记联动
+- **日记**：按日撰写，支持引入当日任务摘要
+- **AI 辅助**（可选）：在设置中配置 OpenAI 兼容接口后，可进行任务分析与周/月日记复盘
 
-1. 打开上方 Releases 页面，选择最新版本。
-2. 下载 **`Doing List Setup x.x.x.exe`**（NSIS 安装程序）。
-3. 运行安装程序并按向导完成安装。
-4. 安装后可在应用 **设置 → 应用更新** 中手动检查更新；正式版启动时也会静默检查新版本。
-
-> 若尚未发布 Release，请由维护者按下方「发布新版本」流程构建并上传安装包。
+数据保存在本机，不上传云端（AI 请求除外，需自行配置 API）。
 
 ---
 
-## 技术栈
+## 下载与安装
 
-- Electron、Vue 3、Vite、Tailwind CSS
-- SQLite（`better-sqlite3`），数据与附件位于系统 `userData` 目录
+正式版安装包发布于 **[GitHub Releases](https://github.com/xiaoyang-1607/doing-list/releases)**。
 
----
+1. 打开 Releases 页面，选择最新版本
+2. 下载 **`Doing List Setup x.x.x.exe`**
+3. 运行安装程序并完成安装
 
-## 开发与运行
-
-```bash
-npm install
-npm run dev
-```
-
-若 `better-sqlite3` 安装失败：
-
-```bash
-npm run install:safe
-```
-
-**Windows（PowerShell 5）：** 终端不支持在一行里写 `&&`。推送代码请分行执行，或使用：
-
-```powershell
-npm run readme:publish -- docs: 提交说明
-```
-
-若 `npm run build` 报 **`&&` 不是有效语句分隔符**，可改用 cmd 作为 npm 脚本 shell：
-
-```powershell
-npm config set script-shell "C:\Windows\System32\cmd.exe"
-```
-
-或安装 [PowerShell 7](https://github.com/PowerShell/PowerShell/releases)。
+> 若 Releases 中尚无安装包，说明维护者尚未发版；开发构建方式见 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
 ---
 
-## 构建安装包（本地）
+## 快速上手
 
-在项目根目录执行：
-
-```bash
-npm run build
-```
-
-- 会先编译 Electron 主进程、preload 与 Vue 前端，再打包 Windows 安装程序。
-- 产物位于 **`release/`** 目录，典型文件名为 **`Doing List Setup {version}.exe`**。
-- `release/` 已在 `.gitignore` 中，**不要**把安装包提交进 Git；应上传到 GitHub Releases。
+1. 启动应用后，在 **Doing List** 页创建分类与任务
+2. 点击任务卡片打开详情，可编辑说明、上传附件、记录感悟
+3. 在 **日记** 页按日期写作，可使用「引入当日任务」
+4. 如需 AI 功能：进入 **设置**，填写 Base URL、API Key 与模型名称后保存
 
 ---
 
-## 发布新版本（维护者）
+## 检查更新
 
-发布前请确认 `package.json` 中 **`version`** 与 **`build.publish`**（`owner` / `repo`）已指向本仓库。
-
-### 方式 A：GitHub Actions 自动发版（推荐）
-
-仓库已配置 [`.github/workflows/release.yml`](.github/workflows/release.yml)。推送 **`v*`** 格式的 tag 后，会在云端构建并上传到 Releases，**无需**在本机配置 `GH_TOKEN`。
-
-```powershell
-# 1. 递增 package.json 的 version（如 0.1.0 → 0.2.0）
-# 2. 提交并推送源码
-git add package.json
-git commit -m "chore: release v0.2.0"
-git push
-
-# 3. 打 tag 并推送（tag 建议与 version 一致，带 v 前缀）
-git tag v0.2.0
-npm run sync:github
-```
-
-完成后在 [Releases](https://github.com/xiaoyang-1607/doing-list/releases) 查看是否出现对应版本及 `.exe` 附件。
-
-### 方式 B：本机构建并上传
-
-1. 申请 GitHub **Personal Access Token**（classic，至少 **`repo`** 权限）。
-2. 在 PowerShell 中设置环境变量（**勿**写入仓库）：
-
-   ```powershell
-   $env:GH_TOKEN = 'ghp_你的令牌'
-   ```
-
-3. 执行：
-
-   ```bash
-   npm run release
-   ```
-
-   等价于 `electron-vite build` + 打 NSIS 包 + 通过 `electron-builder --publish` 上传到 Releases。
-
-### 方式 C：仅本地打包、手动上传
-
-1. `npm run build`
-2. 打开 GitHub 仓库 → **Releases** → **Draft a new release**
-3. 填写 tag / 标题（建议 `v` + `package.json` 的 `version`）
-4. 将 `release/` 下的 **`Doing List Setup *.exe`** 拖入附件并发布
+- 安装正式版后，可在 **设置 → 应用更新** 手动检查
+- 应用启动时也会静默检查新版本（需从 Releases 安装的正式包）
 
 ---
 
-## 数据位置（Windows）
+## 数据与备份
 
-- **数据库**：`%APPDATA%\doing-list\doing-list.db`
-- **附件**：`%APPDATA%\doing-list\attachments\`
+所有业务数据位于 Windows 用户目录，不会写入安装目录：
 
-备份时复制上述应用目录即可。
+| 内容 | 路径 |
+|------|------|
+| 数据库 | `%APPDATA%\doing-list\doing-list.db` |
+| 附件图片 | `%APPDATA%\doing-list\attachments\` |
+
+**备份**：复制整个 `%APPDATA%\doing-list\` 文件夹即可。  
+**卸载注意**：卸载程序不会自动删除上述数据；若需彻底移除，请手动删除该目录。
+
+---
+
+## 常见问题
+
+**安装后 Windows 提示「未知发布者」**  
+当前安装包未做代码签名，属常见现象；确认来源为上述 GitHub Releases 后可继续安装。
+
+**AI 功能不可用**  
+请在设置中确认 Base URL、API Key 与模型名称正确，且网络可访问对应 API。
+
+**开发模式与正式版数据是否共用**  
+共用同一 `userData` 目录；开发调试时请注意不要误删正式数据。
+
+---
+
+## 参与开发
+
+环境搭建、构建、发版与仓库约定见 **[CONTRIBUTING.md](CONTRIBUTING.md)**。
 
 ---
 
 ## 许可
 
-个人使用为主；如需开源协议可自行在仓库中补充。
+个人使用为主；如需明确开源协议，可在仓库中另行补充。

@@ -13,5 +13,5 @@ release/
 *.pfx
 *.pem
 
-# 个人开发复盘，仅保留本地
+# 个人开发复盘，仅保留本地（公开开发说明见 CONTRIBUTING.md）
 docs/DEVELOPMENT.md
