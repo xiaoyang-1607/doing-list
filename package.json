@@ -1,6 +1,6 @@
 {
   "name": "doing-list",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Doing List — 个人学习生活记录",
   "author": "",
   "repository": {
@@ -20,7 +20,8 @@
     "rebuild:native": "electron-rebuild -f -w better-sqlite3",
     "install:safe": "npm install --ignore-scripts && node node_modules/electron/install.js && npm run postinstall",
     "sync:github": "node scripts/git-sync.mjs",
-    "readme:publish": "node scripts/readme-publish.mjs"
+    "readme:publish": "node scripts/readme-publish.mjs",
+    "cleanup:installers": "node scripts/cleanup-installers.mjs"
   },
   "dependencies": {
     "better-sqlite3": "^11.7.0",

@@ -38,7 +38,8 @@ const api = {
   },
 
   tasks: {
-    list: (categoryId: number | null | 'all') => invoke('tasks:list', categoryId),
+    list: (categoryId: number | null | 'all', status: TaskStatus | 'all' = 'all') =>
+      invoke('tasks:list', categoryId, status),
     get: (id: number) => invoke('tasks:get', id),
     create: (input: {
       title: string
@@ -77,7 +78,10 @@ const api = {
     upsert: (input: { date: string; title?: string; content?: string }) =>
       invoke('diaries:upsert', input),
     delete: (id: number) => invoke('diaries:delete', id),
-    tasksForDay: (date: string) => invoke('diaries:tasksForDay', date)
+    tasksForDay: (date: string) => invoke('diaries:tasksForDay', date),
+    exportToFile: (
+      input: { mode: 'one'; date: string; title: string; content: string } | { mode: 'all' }
+    ) => invoke('diaries:exportToFile', input)
   },
 
   attachments: {

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref, watch } from 'vue'
 import type { Task } from '../../shared/types'
-import { taskFilterId } from '../composables/taskFilter'
+import { taskFilterId, taskStatusFilter } from '../composables/taskFilter'
 import { isTaskDrawerOpen } from '../composables/taskDrawer'
 import { showToast } from '../composables/toast'
 import { msgFromCatch } from '../utils/error'
@@ -19,7 +19,7 @@ async function loadTasks() {
     return
   }
   try {
-    tasks.value = await window.api.tasks.list(taskFilterId.value)
+    tasks.value = await window.api.tasks.list(taskFilterId.value, taskStatusFilter.value)
     thumbUrls.value = {}
     for (const t of tasks.value) {
       const first = t.attachment_paths[0]
@@ -38,6 +38,7 @@ async function loadTasks() {
 
 onMounted(loadTasks)
 watch(taskFilterId, loadTasks)
+watch(taskStatusFilter, loadTasks)
 
 watch(drawerOpen, (v) => {
   isTaskDrawerOpen.value = v

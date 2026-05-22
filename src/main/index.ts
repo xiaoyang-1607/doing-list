@@ -1,6 +1,7 @@
 import { app, BrowserWindow, dialog } from 'electron'
 import { ipcHandle } from './ipcSerialize'
 import { dirname, join } from 'path'
+import { writeFileSync } from 'fs'
 import { fileURLToPath } from 'node:url'
 import {
   openDatabase,
@@ -80,7 +81,11 @@ app.whenReady().then(() => {
   ipcHandle('categories:update', (_e, id: number, name: string) => categoryRepo.update(id, name))
   ipcHandle('categories:delete', (_e, id: number) => categoryRepo.delete(id))
 
-  ipcHandle('tasks:list', (_e, categoryId: number | null | 'all') => taskRepo.list(categoryId))
+  ipcHandle(
+    'tasks:list',
+    (_e, categoryId: number | null | 'all', status: TaskStatus | 'all' = 'all') =>
+      taskRepo.list(categoryId, status)
+  )
   ipcHandle('tasks:get', (_e, id: number) => taskRepo.get(id))
   ipcHandle(
     'tasks:create',
@@ -130,6 +135,43 @@ app.whenReady().then(() => {
   )
   ipcHandle('diaries:delete', (_e, id: number) => diaryRepo.delete(id))
   ipcHandle('diaries:tasksForDay', (_e, date: string) => getTasksForDiaryHint(date))
+
+  ipcHandle(
+    'diaries:exportToFile',
+    async (
+      _e,
+      input: { mode: 'one'; date: string; title: string; content: string } | { mode: 'all' }
+    ) => {
+      const stamp = new Date().toISOString().slice(0, 10)
+      const defaultPath =
+        input.mode === 'one' ? `diary-${input.date}.md` : `doing-list-diaries-${stamp}.md`
+      const r = await dialog.showSaveDialog(mainWindow!, {
+        defaultPath,
+        filters: [
+          { name: 'Markdown', extensions: ['md'] },
+          { name: 'Text', extensions: ['txt'] }
+        ]
+      })
+      if (r.canceled || !r.filePath) return { canceled: true as const }
+
+      const toMd = (date: string, title: string, body: string) => {
+        const heading = title.trim() || '（无标题）'
+        return `# ${date} ${heading}\n\n${body.trim()}\n`
+      }
+
+      let markdown: string
+      if (input.mode === 'one') {
+        markdown = toMd(input.date, input.title, input.content)
+      } else {
+        const all = diaryRepo.list()
+        if (!all.length) throw new Error('暂无已保存的日记可导出')
+        markdown = all.map((d) => toMd(d.date, d.title, d.content)).join('\n---\n\n')
+      }
+
+      writeFileSync(r.filePath, markdown, 'utf-8')
+      return { ok: true as const, path: r.filePath }
+    }
+  )
 
   ipcHandle('attachments:pick', async () => {
     const r = await dialog.showOpenDialog(mainWindow!, {

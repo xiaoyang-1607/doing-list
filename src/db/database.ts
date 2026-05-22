@@ -133,21 +133,26 @@ function rowToTask(row: Record<string, unknown>): Task {
 }
 
 export const taskRepo = {
-  list(categoryId: number | null | 'all'): Task[] {
+  list(categoryId: number | null | 'all', status: TaskStatus | 'all' = 'all'): Task[] {
     const d = getDb()
     let sql = `
       SELECT t.*, c.name AS category_name
       FROM tasks t
       LEFT JOIN categories c ON c.id = t.category_id
+      WHERE 1=1
     `
     const params: (number | string)[] = []
-    if (categoryId === 'all') {
-      /* 不筛选 */
-    } else if (categoryId === null || categoryId === undefined) {
-      sql += ` WHERE t.category_id IS NULL`
-    } else {
-      sql += ` WHERE t.category_id = ?`
-      params.push(categoryId)
+    if (categoryId !== 'all') {
+      if (categoryId === null || categoryId === undefined) {
+        sql += ` AND t.category_id IS NULL`
+      } else {
+        sql += ` AND t.category_id = ?`
+        params.push(categoryId)
+      }
+    }
+    if (status !== 'all') {
+      sql += ` AND t.status = ?`
+      params.push(status)
     }
     sql += ` ORDER BY t.created_at DESC`
     const stmt = d.prepare(sql)

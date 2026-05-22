@@ -8,6 +8,29 @@ import { toPlain } from '../utils/ipcPayload'
 
 const today = formatLocalDateYmd(new Date())
 
+/** 去掉正文末尾由「引入任务摘录」写入的块（含旧版「今日任务摘录」） */
+function stripImportedTaskBlock(text: string): string {
+  return text.replace(/\n?—— (?:.+ 任务摘录|今日任务摘录) ——[\s\S]*$/, '').trimEnd()
+}
+
+function formatTaskHintsBlock(hints: DiaryTaskHint[]): string {
+  return hints
+    .map((h: DiaryTaskHint) => {
+      const lines: string[] = [`- ${h.title}`]
+      const dayRefs = h.reflections_on_day ?? []
+      if (dayRefs.length) {
+        for (const r of dayRefs) {
+          const t = formatStoredAsLocal(r.created_at)
+          lines.push(`  [${t}] ${r.content}`)
+        }
+      } else if (h.insight?.trim()) {
+        lines.push(`  心得（摘要）：${h.insight}`)
+      }
+      return lines.join('\n')
+    })
+    .join('\n\n')
+}
+
 const diaries = ref<Diary[]>([])
 const selectedDate = ref(today)
 const title = ref('')
@@ -76,24 +99,36 @@ async function importTasks() {
     showToast('该日暂无可引入的任务', 'info')
     return
   }
-  const block = hints
-    .map((h: DiaryTaskHint) => {
-        const lines: string[] = [`- ${h.title}`]
-        const dayRefs = h.reflections_on_day ?? []
-        if (dayRefs.length) {
-          for (const r of dayRefs) {
-            const t = formatStoredAsLocal(r.created_at)
-            lines.push(`  [${t}] ${r.content}`)
-          }
-        } else if (h.insight?.trim()) {
-          lines.push(`  心得（摘要）：${h.insight}`)
-        }
-        return lines.join('\n')
-    })
-    .join('\n\n')
-  const prefix = content.value.trim() ? `${content.value.trim()}\n\n` : ''
-  content.value = `${prefix}—— 今日任务摘录 ——\n${block}\n`
+  const block = formatTaskHintsBlock(hints)
+  const marker = `—— ${selectedDate.value} 任务摘录 ——`
+  const userPart = stripImportedTaskBlock(content.value)
+  content.value = userPart ? `${userPart}\n\n${marker}\n${block}\n` : `${marker}\n${block}\n`
   showToast(`已引入 ${hints.length} 条任务摘要`, 'success')
+}
+
+async function exportCurrentDiary() {
+  try {
+    const r = await window.api.diaries.exportToFile({
+      mode: 'one',
+      date: selectedDate.value,
+      title: title.value,
+      content: content.value
+    })
+    if ('canceled' in r && r.canceled) return
+    if ('ok' in r && r.ok) showToast('本篇日记已导出', 'success')
+  } catch (e) {
+    showToast(`导出失败：${msgFromCatch(e)}`, 'error')
+  }
+}
+
+async function exportAllDiaries() {
+  try {
+    const r = await window.api.diaries.exportToFile({ mode: 'all' })
+    if ('canceled' in r && r.canceled) return
+    if ('ok' in r && r.ok) showToast('全部日记已导出', 'success')
+  } catch (e) {
+    showToast(`导出失败：${msgFromCatch(e)}`, 'error')
+  }
 }
 
 async function runReview() {
@@ -156,6 +191,20 @@ function pickDate(d: string) {
             @click="importTasks"
           >
             引入任务摘录
+          </button>
+          <button
+            type="button"
+            class="rounded-lg border border-surface-border px-4 py-2 text-sm hover:bg-white/5"
+            @click="exportCurrentDiary"
+          >
+            导出本篇
+          </button>
+          <button
+            type="button"
+            class="rounded-lg border border-surface-border px-4 py-2 text-sm hover:bg-white/5"
+            @click="exportAllDiaries"
+          >
+            导出全部
           </button>
           <button
             type="button"

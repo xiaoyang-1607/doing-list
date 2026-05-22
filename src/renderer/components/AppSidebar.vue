@@ -2,7 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import type { Category } from '../../shared/types'
-import { taskFilterId } from '../composables/taskFilter'
+import { taskFilterId, taskStatusFilter } from '../composables/taskFilter'
 import { bumpCategoriesRevision } from '../composables/categoriesSync'
 import { showToast } from '../composables/toast'
 import { isTaskDrawerOpen } from '../composables/taskDrawer'
@@ -13,6 +13,14 @@ const route = useRoute()
 
 const categories = ref<Category[]>([])
 const filterId = taskFilterId
+const statusFilter = taskStatusFilter
+
+const statusOptions: { value: typeof statusFilter.value; label: string }[] = [
+  { value: 'all', label: '全部' },
+  { value: 'todo', label: '未开始' },
+  { value: 'doing', label: '进行中' },
+  { value: 'done', label: '已完成' }
+]
 const newCat = ref('')
 const editingId = ref<number | null>(null)
 const editingName = ref('')
@@ -143,6 +151,24 @@ function goNav(path: string) {
     </nav>
 
     <div v-if="showDoingFilters" class="mt-2 flex-1 overflow-hidden border-t border-surface-border px-2 pt-3">
+      <p class="mb-2 px-2 text-xs font-medium uppercase tracking-wider text-slate-500">状态筛选</p>
+      <div class="mb-3 grid grid-cols-2 gap-1 px-1">
+        <button
+          v-for="opt in statusOptions"
+          :key="opt.value"
+          type="button"
+          class="rounded-lg px-2 py-1.5 text-left text-xs transition"
+          :class="
+            statusFilter === opt.value
+              ? 'bg-accent/20 text-accent-muted'
+              : 'text-slate-400 hover:bg-white/5'
+          "
+          @click="statusFilter = opt.value"
+        >
+          {{ opt.label }}
+        </button>
+      </div>
+
       <p class="mb-2 px-2 text-xs font-medium uppercase tracking-wider text-slate-500">分类筛选</p>
       <button
         type="button"
