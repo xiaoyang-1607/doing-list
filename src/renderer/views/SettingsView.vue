@@ -114,7 +114,14 @@ async function checkUpdate() {
         <div class="border-t border-surface-border pt-6">
           <h3 class="mb-2 text-sm font-semibold text-white">应用更新</h3>
           <p class="mb-4 text-xs text-slate-500">
-            需在 <code class="rounded bg-white/5 px-1">package.json</code> 中配置 GitHub 仓库，详见项目内 <code class="rounded bg-white/5 px-1">docs/DEVELOPMENT.md</code> 第十一节。
+            请从
+            <a
+              href="https://github.com/xiaoyang-1607/doing-list/releases"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="text-accent hover:underline"
+            >GitHub Releases</a>
+            安装正式版；在线更新依赖同一仓库的 Release 资源。
           </p>
           <div class="flex flex-wrap items-center gap-3">
             <button

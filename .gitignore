@@ -3,5 +3,15 @@ out/
 release/
 *.log
 .DS_Store
+
+# Secrets & local overrides（勿提交令牌与真实密钥）
 .env
 .env.*
+
+# Code signing keys（打包签名用，绝不应进远程）
+*.p12
+*.pfx
+*.pem
+
+# 个人开发复盘，仅保留本地
+docs/DEVELOPMENT.md
