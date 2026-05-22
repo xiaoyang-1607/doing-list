@@ -65,7 +65,8 @@
       {
         "provider": "github",
         "owner": "xiaoyang-1607",
-        "repo": "doing-list"
+        "repo": "doing-list",
+        "releaseType": "release"
       }
     ]
   }
