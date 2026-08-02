@@ -1,171 +1,96 @@
-# 开发指南
+# 开发与贡献指南
 
-本文面向维护者与贡献者。终端用户使用说明见 [README.md](README.md)。
+本文面向维护者和贡献者；终端用户说明见 [README.md](README.md)，安全问题请遵循 [SECURITY.md](SECURITY.md)。
 
----
+## 技术栈与目录
 
-## 仓库结构
+- Electron、Vue 3、Vue Router、Tailwind CSS
+- TypeScript、electron-vite、electron-builder（NSIS）
+- SQLite（`better-sqlite3`）
 
-```
+```text
 doing-list/
-├── .github/workflows/   # CI：tag 触发 Release 构建
-├── docs/                # 扩展文档目录（个人复盘 DEVELOPMENT.md 仅本地，不提交）
-├── scripts/             # Git 同步等维护脚本
-├── src/
-│   ├── main/            # Electron 主进程、IPC、AI、附件
-│   ├── preload/         # contextBridge
-│   ├── renderer/        # Vue 3 前端
-│   ├── db/              # SQLite schema 与仓储
-│   └── shared/          # 共享类型
-├── CONTRIBUTING.md      # 本文件
-└── README.md            # 用户使用说明
+├─ .github/          # CI、CodeQL、Dependabot 与 Release 工作流
+├─ docs/releases/    # 已发布版本说明
+├─ scripts/          # 受限的维护和发布校验脚本
+├─ src/main/         # Electron 主进程、IPC、AI、附件
+├─ src/preload/      # contextBridge 暴露的最小 API
+├─ src/renderer/     # Vue 页面与状态
+├─ src/db/           # SQLite schema 与仓储
+└─ src/shared/       # 主进程与渲染进程共享类型
 ```
 
----
+## 环境与安装
 
-## 技术栈
-
-| 层级 | 技术 |
-|------|------|
-| 桌面壳 | Electron |
-| 前端 | Vue 3、Vue Router（Hash）、Tailwind CSS |
-| 构建 | electron-vite、TypeScript、electron-builder（NSIS） |
-| 数据 | SQLite（`better-sqlite3`），库与附件在 `userData` |
-
----
-
-## 环境要求
-
-- **Node.js** 22 LTS（与 GitHub Actions 一致）
-- **Windows**（当前主要开发与打包目标）
+- Node.js 22.12–24.x（CI 使用 Node.js 22）
+- Windows 10/11
 - Git
 
----
-
-## 本地开发
-
-```bash
-git clone https://github.com/xiaoyang-1607/doing-list.git
-cd doing-list
-npm install
+```powershell
+npm ci
 npm run dev
 ```
 
-若 `better-sqlite3` 安装失败（Node 版本过新、无预编译包等）：
+如果 Electron 运行时下载被网络中断，直接重试 `npm ci`。不要使用 `--force` 或 `--legacy-peer-deps` 绕过版本约束。`better-sqlite3` 13 使用随包发布的 Node-API 二进制，构建配置会跳过不必要的 ABI 重编译。
 
-```bash
-npm run install:safe
-```
+## 质量检查
 
-### 常用命令
-
-| 命令 | 说明 |
-|------|------|
-| `npm run dev` | 开发调试 |
-| `npm run build` | 构建并打 Windows 安装包 |
-| `npm run build:vite` | 仅编译资源，不打安装包 |
-| `npm run release` | 构建并发布到 GitHub Releases（需 `GH_TOKEN`） |
-| `npm run rebuild:native` | 重编 `better-sqlite3` |
-| `npm run sync:github` | 推送当前分支与 tags |
-| `npm run readme:publish -- "说明"` | 仅提交 README 并推送 |
-
----
-
-## Windows / PowerShell 说明
-
-**PowerShell 5** 不支持在一行中使用 `&&`。推送代码请分行执行，或使用 `npm run sync:github`。
-
-若 `npm run build` 报 **`&&` 不是有效语句分隔符**：
+提交前至少运行：
 
 ```powershell
-npm config set script-shell "C:\Windows\System32\cmd.exe"
+npm run audit:prod
+npm run check
 ```
 
-或改用 [PowerShell 7](https://github.com/PowerShell/PowerShell/releases)。
+`npm run check` 依次执行 TypeScript/Vue 类型检查、Node 测试和 electron-vite 构建。需要验证 Windows 安装包时运行 `npm run build`，产物写入被 Git 忽略的 `release/`。
 
----
+| 命令 | 用途 |
+| --- | --- |
+| `npm run dev` | 启动开发模式 |
+| `npm test` | 运行输入校验和日记摘要测试 |
+| `npm run typecheck` | TypeScript/Vue 类型检查 |
+| `npm run build:vite` | 构建主进程、preload 与渲染资源 |
+| `npm run check` | 执行提交前完整检查 |
+| `npm run build` | 完整检查后构建 Windows 安装包 |
+| `npm run verify:package` | 在打包后的 Electron 中执行 SQLite 冒烟测试 |
+| `npm run cleanup:installers` | 只删除仓库内 `release/` 构建产物 |
+| `npm run sync:github` | 只推送当前分支，不推送 tag |
 
-## 构建安装包
+## 代码与安全约定
 
-```bash
-npm run build
-```
+- 渲染进程不得启用 Node.js 集成或直接访问文件系统、数据库和密钥。
+- 新增 IPC 时同时更新共享类型，在主进程边界验证所有外部输入，并补充测试。
+- 文件操作必须把解析后的路径限制在明确目录内；递归删除不得指向仓库外路径。
+- 非本机网络请求必须使用 HTTPS，并设置超时和响应大小上限。
+- 不得提交 `.env`、API Key、GitHub Token、数据库、用户附件、日志、安装包或代码签名私钥。
+- GitHub Actions 必须固定到完整提交 SHA；Dependabot 负责提出更新 PR。
+- 不要通过 shell 字符串拼接用户输入；调用子进程时传递独立参数数组。
 
-- 产物目录：**`release/`**
-- 典型文件名：**`Doing List Setup {version}.exe`**
-- `release/` 已在 `.gitignore` 中，**勿提交**；应上传到 GitHub Releases
+## 提交流程
 
----
+1. 从最新 `master` 创建分支。
+2. 保持提交范围单一，推荐使用 `feat:`、`fix:`、`docs:`、`test:`、`refactor:`、`chore:` 前缀。
+3. 更新测试和 `[Unreleased]` 变更记录。
+4. 运行生产依赖审计和完整检查。
+5. 推送分支并通过 CI、依赖审查和 CodeQL。
 
-## 发布新版本
+## 发布流程
 
-发版前确认 `package.json` 中 **`version`** 与 **`build.publish`**（`owner` / `repo`）指向本仓库。
+发布由 `.github/workflows/release.yml` 在显式推送 `v*` tag 时触发。普通的 `npm run sync:github` 不会推送 tag，避免意外发布。
 
-### 方式 A：GitHub Actions（推荐）
-
-推送 **`v*`** 格式 tag 后，[`.github/workflows/release.yml`](.github/workflows/release.yml) 会在云端构建并上传，**无需**本机 `GH_TOKEN`。
+1. 更新 `package.json` 与 `package-lock.json` 中的版本。
+2. 把 `CHANGELOG.md` 的待发布内容整理为 `## [x.y.z] - YYYY-MM-DD`。
+3. 运行 `npm run verify:release`、`npm run audit:prod` 和 `npm run build`。
+4. 提交并推送版本变更，等待 `master` CI 通过。
+5. 创建与版本完全一致的 tag，并单独推送：
 
 ```powershell
-# 1. 递增 package.json 的 version
-# 2. 提交并推送
-git add package.json
-git commit -m "chore: release v0.2.0"
-git push
-
-# 3. 打 tag 并推送
 git tag v0.2.0
-npm run sync:github
+git push origin v0.2.0
 ```
 
-在 [Releases](https://github.com/xiaoyang-1607/doing-list/releases) 确认 `.exe` 已上传。tag 建议与 `version` 一致（带 `v` 前缀）。
+工作流会再次校验 tag、版本和变更日志，构建安装包，生成 `SHA256SUMS.txt`，再创建带自动发行说明的 GitHub Release。不要移动或复用已发布 tag。
 
-### 方式 B：本机 `npm run release`
+## 本地数据提醒
 
-1. 申请 GitHub PAT（classic，`repo` 权限）
-2. PowerShell：`$env:GH_TOKEN = 'ghp_…'`（**勿提交**）
-3. 执行 `npm run release`
-
-### 方式 C：本地打包 + 手动上传
-
-1. `npm run build`
-2. GitHub → Releases → Draft a new release
-3. 上传 `release/` 下的安装包
-
----
-
-## 同步 GitHub
-
-日常推送：
-
-```bash
-npm run sync:github
-```
-
-等价于 `git push -u origin HEAD` 与 `git push origin --tags`（见 `scripts/git-sync.mjs`）。
-
----
-
-## 数据位置（开发调试）
-
-与正式版相同，便于联调：
-
-- 数据库：`%APPDATA%\doing-list\doing-list.db`
-- 附件：`%APPDATA%\doing-list\attachments\`
-
----
-
-## 安全与提交规范
-
-以下内容**不得**进入 Git：
-
-- API Key、GitHub PAT、`GH_TOKEN` 等密钥
-- `.env` / `.env.*`
-- 代码签名私钥（`.p12`、`.pfx` 等）
-- `node_modules/`、`out/`、`release/` 构建产物
-- 个人开发复盘 `docs/DEVELOPMENT.md`（已在 `.gitignore`）
-
----
-
-## 个人开发笔记
-
-`docs/DEVELOPMENT.md` 用于本地记录踩坑与迭代复盘，**刻意不纳入版本库**。公开仓库仅维护 README（用户）与本 CONTRIBUTING（开发者）。
+开发模式与安装版默认共享 `%APPDATA%\doing-list`。调试删除、迁移和附件清理功能前，请先备份真实数据，或使用隔离的 Windows 测试账户。

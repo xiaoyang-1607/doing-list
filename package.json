@@ -12,38 +12,38 @@
   "type": "module",
   "scripts": {
     "dev": "electron-vite dev",
-    "build": "electron-vite build && electron-builder",
-    "release": "electron-vite build && electron-builder --publish always",
+    "build": "npm run check && npm run cleanup:installers && electron-builder && npm run verify:package",
+    "release": "npm run verify:release && npm run build",
     "build:vite": "electron-vite build",
     "typecheck": "vue-tsc --noEmit",
     "test": "node --experimental-strip-types --test src/main/validation.test.ts src/shared/diaryExcerpt.test.ts",
     "check": "npm run typecheck && npm test && npm run build:vite",
+    "audit:prod": "npm audit --omit=dev --audit-level=high",
+    "verify:release": "node scripts/verify-release.mjs",
+    "verify:package": "node scripts/verify-package.mjs",
     "preview": "electron-vite preview",
-    "postinstall": "electron-builder install-app-deps",
-    "rebuild:native": "electron-builder install-app-deps",
-    "install:safe": "npm install --ignore-scripts && node node_modules/electron/install.js && npm run postinstall",
     "sync:github": "node scripts/git-sync.mjs",
     "readme:publish": "node scripts/readme-publish.mjs",
     "cleanup:installers": "node scripts/cleanup-installers.mjs"
   },
   "dependencies": {
-    "better-sqlite3": "^11.7.0",
+    "better-sqlite3": "13.0.2",
     "electron-updater": "6.8.9",
-    "vue": "^3.5.13",
-    "vue-router": "^4.5.0"
+    "vue": "3.5.40",
+    "vue-router": "4.6.4"
   },
   "devDependencies": {
-    "@types/better-sqlite3": "^7.6.13",
-    "@vitejs/plugin-vue": "^5.2.1",
-    "autoprefixer": "^10.4.20",
-    "electron": "^33.2.1",
-    "electron-builder": "^25.1.8",
-    "electron-vite": "^2.3.0",
+    "@types/better-sqlite3": "9.6.0",
+    "@vitejs/plugin-vue": "6.0.8",
+    "autoprefixer": "10.5.4",
+    "electron": "43.2.0",
+    "electron-builder": "26.15.3",
+    "electron-vite": "5.0.0",
     "postcss": "8.5.25",
     "tailwindcss": "^3.4.17",
-    "typescript": "^5.7.2",
-    "vite": "^5.4.11",
-    "vue-tsc": "^2.1.10"
+    "typescript": "5.9.3",
+    "vite": "7.3.6",
+    "vue-tsc": "3.3.9"
   },
   "engines": {
     "node": ">=22.12 <25"
@@ -54,17 +54,26 @@
   "build": {
     "appId": "com.doinglist.app",
     "productName": "Doing List",
+    "electronDist": "node_modules/electron/dist",
+    "npmRebuild": false,
     "directories": {
       "output": "release"
     },
+    "artifactName": "Doing-List-Setup-${version}.${ext}",
     "files": [
-      "out/**/*"
+      "out/**/*",
+      "!node_modules/better-sqlite3/deps/**/*",
+      "!node_modules/better-sqlite3/src/**/*",
+      "!node_modules/better-sqlite3/prebuilds/darwin-*.node",
+      "!node_modules/better-sqlite3/prebuilds/linux-*.node",
+      "!node_modules/better-sqlite3/prebuilds/linuxmusl-*.node",
+      "!node_modules/better-sqlite3/prebuilds/win32-arm64.node"
     ],
     "win": {
       "target": [
         "nsis"
       ],
-      "signAndEditExecutable": false
+      "signExecutable": false
     },
     "nsis": {
       "oneClick": false,

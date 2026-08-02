@@ -1,104 +1,85 @@
 # Doing List
 
-Windows 桌面应用，用于记录学习任务、管理待办，并撰写日记与复盘。
+[![CI](https://github.com/xiaoyang-1607/doing-list/actions/workflows/ci.yml/badge.svg)](https://github.com/xiaoyang-1607/doing-list/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/xiaoyang-1607/doing-list/actions/workflows/codeql.yml/badge.svg)](https://github.com/xiaoyang-1607/doing-list/actions/workflows/codeql.yml)
+[![Latest release](https://img.shields.io/github/v/release/xiaoyang-1607/doing-list)](https://github.com/xiaoyang-1607/doing-list/releases/latest)
 
-**当前版本**：[v0.1.2](https://github.com/xiaoyang-1607/doing-list/releases/tag/v0.1.2)
+Doing List 是一款面向 Windows 的本地任务与日记桌面应用。它把待办、分类、每日感悟和复盘放在一个轻量界面里；除用户主动使用 AI 功能外，业务数据不会上传到云端。
 
----
+最新稳定版：[v0.1.2](https://github.com/xiaoyang-1607/doing-list/releases/tag/v0.1.2)。`master` 分支包含尚未发布的质量与安全改进，详情见 [CHANGELOG.md](CHANGELOG.md)。
 
-## 功能概览
+## 功能
 
-- **Doing List**：任务分类、状态流转（未开始 / 进行中 / 已完成）、侧栏按**分类 + 状态**组合筛选
-- **感悟时间轴**：任务下的按日感悟记录，可与日记联动
-- **日记**：按日撰写；一键引入所选日期的任务摘录；支持导出为 Markdown
-- **AI 辅助**（可选）：在设置中配置 OpenAI 兼容接口后，可进行任务分析与周/月日记复盘
-
-数据保存在本机，不上传云端（AI 请求除外，需自行配置 API）。
-
----
+- 任务：创建、编辑、删除、分类，并在“未开始 / 进行中 / 已完成”之间流转
+- 筛选：组合使用任务状态与分类筛选
+- 感悟时间轴：为任务记录按日期组织的感悟
+- 日记：自动保存、导入当天任务摘要、导出单篇或全部 Markdown
+- 附件：为任务添加本地图片，删除任务或移除图片后清理无引用副本
+- AI（可选）：连接 OpenAI 兼容接口，进行任务分析和周/月复盘
+- 更新：安装版可从 GitHub Releases 检查新版本
 
 ## 下载与安装
 
-正式版安装包发布于 **[GitHub Releases](https://github.com/xiaoyang-1607/doing-list/releases)**。
+1. 前往 [GitHub Releases](https://github.com/xiaoyang-1607/doing-list/releases/latest)。
+2. 下载 `Doing-List-Setup-x.x.x.exe`，不要下载源码压缩包作为安装程序。
+3. 运行安装程序。当前安装包尚未进行商业代码签名，Windows 可能显示“未知发布者”；请确认下载地址属于本仓库并核对校验值。
 
-1. 打开 Releases 页面，选择 **最新版本**（建议 v0.1.2 及以上）
-2. 下载 **`Doing-List-Setup-x.x.x.exe`**
-3. 运行安装程序并完成安装
+v0.1.2 安装程序 SHA-256：
 
-> **请勿使用 v0.1.0**：该版本存在启动问题。若曾安装过旧版，请先卸载或关闭应用后再安装新版。
+```text
+2ddd7e5556c55a256fb98841fc7dea01a29da307b6877dcaa0944bfa4a10b83e  Doing-List-Setup-0.1.2.exe
+```
 
-维护者构建说明见 [CONTRIBUTING.md](CONTRIBUTING.md)。
+PowerShell 校验命令：
 
----
+```powershell
+Get-FileHash -Algorithm SHA256 .\Doing-List-Setup-0.1.2.exe
+```
 
-## 快速上手
+请勿使用 v0.1.0，该版本存在已知启动问题。推荐始终安装最新 Release。
 
-### Doing List
+## 数据、隐私与安全
 
-1. 在侧栏 **状态筛选** 中选择：全部 / 未开始 / 进行中 / 已完成
-2. 在 **分类筛选** 中选择：全部 / 未分类 / 某一分类（可与状态筛选同时使用）
-3. 点击 **+ 新建任务** 或任务卡片，编辑说明、附件与感悟时间轴
-
-### 日记
-
-1. 选择日期，填写标题与正文
-2. 点击 **引入任务摘录**：将所选日期相关的任务与感悟写入正文；新版摘录带有明确边界，**再次点击只替换自动摘录，不会影响之后补写的正文**
-3. 点击 **导出本篇** 或 **导出全部**，保存为 Markdown 文件（`.md`）
-4. 编辑完成后点击 **保存日记**
-
-### AI（可选）
-
-进入 **设置**，填写 Base URL、API Key 与模型名称后保存。
-
----
-
-## 检查更新
-
-- 安装正式版后，可在 **设置 → 应用更新** 手动检查
-- 应用启动时也会静默检查新版本（需从 Releases 安装的正式包）
-
----
-
-## 数据与备份
-
-所有业务数据位于 Windows 用户目录，不会写入安装目录：
+业务数据默认位于 Windows 用户目录：
 
 | 内容 | 路径 |
-|------|------|
-| 数据库 | `%APPDATA%\doing-list\doing-list.db` |
-| 附件图片 | `%APPDATA%\doing-list\attachments\` |
+| --- | --- |
+| SQLite 数据库 | `%APPDATA%\doing-list\doing-list.db` |
+| 附件副本 | `%APPDATA%\doing-list\attachments\` |
 
-**备份**：复制整个 `%APPDATA%\doing-list\` 文件夹即可。  
-**导出**：日记页「导出本篇 / 导出全部」可另存 Markdown 副本。  
-**卸载注意**：卸载程序不会自动删除上述数据；若需彻底移除，请手动删除该目录。
+- 备份：退出应用后复制整个 `%APPDATA%\doing-list\` 目录。
+- 卸载：卸载程序不会自动删除上述个人数据；需要彻底移除时请先备份，再手动删除目录。
+- AI：只有主动调用 AI 功能时，相关任务或日记内容才会发送到你配置的服务商。请先阅读该服务商的隐私政策。
+- API Key：当前源码使用 Electron `safeStorage` 加密后再保存；渲染页面无法直接读取已保存的明文密钥。若系统不支持安全存储，应用会拒绝保存密钥。
+- 网络：非本机 AI 服务地址必须使用 HTTPS；`localhost`/`127.0.0.1` 可使用 HTTP。
+- 桌面隔离：窗口启用了渲染进程沙箱、上下文隔离、禁用 Node.js 集成，并限制 IPC 输入和附件路径。
 
----
+发现安全问题时，请勿创建公开 Issue；按 [SECURITY.md](SECURITY.md) 中的方式私下报告。
 
-## 常见问题
+## 开发
 
-**安装后 Windows 提示「未知发布者」**  
-当前安装包未做代码签名，属常见现象；确认来源为上述 GitHub Releases 后可继续安装。
+要求 Node.js 22.12–24.x、Git 和 Windows。`better-sqlite3` 13 使用随 npm 包发布的 Node-API 二进制，无需为 Electron 单独重编译。
 
-**安装后启动报错**  
-请确认使用的是 **v0.1.1 或 v0.1.2**；v0.1.0 已废弃。卸载旧版后重新安装最新 Release。
+```powershell
+git clone https://github.com/xiaoyang-1607/doing-list.git
+cd doing-list
+npm ci
+npm run dev
+```
 
-**AI 功能不可用**  
-请在设置中确认 Base URL、API Key 与模型名称正确，且网络可访问对应 API。
+提交前执行：
 
-**引入任务摘录重复了**  
-新版会安全替换带边界标记的自动摘录。旧版摘录没有结束边界，应用不会冒险自动删除；首次升级时可手动删除旧摘录一次，之后不会重复堆叠。
+```powershell
+npm run audit:prod
+npm run check
+```
 
-**开发模式与正式版数据是否共用**  
-共用同一 `userData` 目录；开发调试时请注意不要误删正式数据。
+常用命令、项目结构和发布流程见 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
----
+## 参与贡献
 
-## 参与开发
-
-环境搭建、构建、发版与仓库约定见 **[CONTRIBUTING.md](CONTRIBUTING.md)**。个人开发复盘见本地 `docs/DEVELOPMENT.md`（不公开）。
-
----
+欢迎通过 Issue 反馈可复现的问题，或通过 Pull Request 提交改进。提交前请确保没有包含 API Key、访问令牌、数据库、私人日记、附件或签名证书。
 
 ## 许可
 
-个人使用为主；如需明确开源协议，可在仓库中另行补充。
+仓库目前没有附加开源许可证。除法律默认允许的浏览与派生平台权利外，代码的复制、修改和再分发未获得明确授权。维护者若希望开放这些权利，应先选择并添加合适的 `LICENSE` 文件。

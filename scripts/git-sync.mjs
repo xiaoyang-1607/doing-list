@@ -1,6 +1,14 @@
 #!/usr/bin/env node
-/** 等价于依次执行 git push 与推送 tags（避免 npm 走 PowerShell 5 时无法用 &&）。 */
-import { execSync } from 'node:child_process'
+/** 推送当前分支。发布 tag 必须由维护者显式推送。 */
+import { spawnSync } from 'node:child_process'
 
-execSync('git push -u origin HEAD', { stdio: 'inherit' })
-execSync('git push origin --tags', { stdio: 'inherit' })
+const result = spawnSync('git', ['push', '-u', 'origin', 'HEAD'], {
+  stdio: 'inherit',
+  shell: false
+})
+
+if (result.error) {
+  throw result.error
+}
+
+process.exit(result.status ?? 1)

@@ -1,10 +1,16 @@
-# 打 tag 推送后自动构建并发布到 GitHub Releases（需先在 package.json 填写 publish.owner/repo）
 name: Release
 
 on:
   push:
     tags:
       - 'v*'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   release:
@@ -13,19 +19,49 @@ jobs:
       contents: write
 
     steps:
-      - uses: actions/checkout@v6
+      - name: Checkout repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
 
-      - uses: actions/setup-node@v6
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: '22'
           cache: npm
 
-      - run: npm ci
+      - name: Install dependencies
+        run: npm ci
 
-      - name: Quality checks
-        run: npm run typecheck && npm test
+      - name: Audit production dependencies
+        run: npm run audit:prod
 
-      - name: Build & publish to GitHub Releases
+      - name: Validate version, check quality and build installer
         run: npm run release
+
+      - name: Generate SHA-256 checksums
+        shell: pwsh
+        run: |
+          $assets = Get-ChildItem release -File | Where-Object { $_.Name -match '\.(exe|blockmap|yml)$' }
+          if ($assets.Count -eq 0) { throw 'No release assets were generated.' }
+          $lines = foreach ($asset in $assets) {
+            $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $asset.FullName).Hash.ToLowerInvariant()
+            "$hash  $($asset.Name)"
+          }
+          $lines | Set-Content -Encoding utf8NoBOM release/SHA256SUMS.txt
+
+      - name: Create GitHub Release and upload artifacts
+        shell: pwsh
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $tag = $env:GITHUB_REF_NAME
+          $version = (Get-Content package.json | ConvertFrom-Json).version
+          if (gh release view $tag *> $null) {
+            gh release edit $tag --title "Doing List v$version"
+          } else {
+            gh release create $tag --verify-tag --title "Doing List v$version" --generate-notes
+          }
+          Get-ChildItem release -File |
+            Where-Object { $_.Name -match '\.(exe|blockmap|yml|txt)$' } |
+            ForEach-Object { gh release upload $tag $_.FullName --clobber }

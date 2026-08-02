@@ -1,30 +1,25 @@
 #!/usr/bin/env node
-/**
- * 清理本地错误/过期的安装包与自定义安装目录（默认 0.1.0 相关路径）。
- * 用法: node scripts/cleanup-installers.mjs
- */
-import { rmSync, existsSync } from 'node:fs'
-import { resolve, dirname } from 'node:path'
+/** 删除仓库内的本地构建产物。不会访问仓库外的安装目录或用户数据。 */
+import { existsSync, rmSync } from 'node:fs'
+import { dirname, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
+const target = resolve(root, 'release')
+const targetRelativePath = relative(root, target)
 
-const targets = [
-  resolve(root, 'release'),
-  'D:/mydoinglist',
-  'D:\\mydoinglist'
-]
-
-for (const target of [...new Set(targets)]) {
-  if (!existsSync(target)) {
-    console.log(`[skip] 不存在: ${target}`)
-    continue
-  }
-  try {
-    rmSync(target, { recursive: true, force: true })
-    console.log(`[ok] 已删除: ${target}`)
-  } catch (e) {
-    console.error(`[fail] ${target}: ${e instanceof Error ? e.message : e}`)
-    console.error('  若提示文件占用，请先关闭 Doing List 或从「设置 → 应用」卸载后再运行。')
-  }
+if (
+  targetRelativePath === '' ||
+  targetRelativePath.startsWith('..') ||
+  targetRelativePath.includes(':')
+) {
+  throw new Error(`拒绝清理仓库外路径：${target}`)
 }
+
+if (!existsSync(target)) {
+  console.log(`[skip] 构建产物目录不存在：${target}`)
+  process.exit(0)
+}
+
+rmSync(target, { recursive: true, force: true })
+console.log(`[ok] 已删除本地构建产物：${target}`)
