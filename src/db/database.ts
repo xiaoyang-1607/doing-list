@@ -3,7 +3,17 @@ import { readFileSync } from 'fs'
 import { dirname, join } from 'path'
 import { fileURLToPath } from 'url'
 import { utcBoundsForLocalCalendarDay } from '../shared/datetime'
-import type { Category, Diary, DiaryTaskHint, Task, TaskReflection, TaskStatus } from '../shared/types'
+import type {
+  Category,
+  Diary,
+  DiaryTaskHint,
+  DiaryUpsertInput,
+  Task,
+  TaskCreateInput,
+  TaskReflection,
+  TaskStatus,
+  TaskUpdateInput
+} from '../shared/types'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
@@ -79,30 +89,42 @@ function runMigrations(database: Database.Database): void {
     | { value: string }
     | undefined
   if (!flag) {
-    try {
+    const migrate = database.transaction(() => {
       database
         .prepare(
           `INSERT INTO task_reflections (task_id, content, created_at)
            SELECT id, insight, updated_at FROM tasks WHERE TRIM(COALESCE(insight,'')) != ''`
         )
         .run()
-    } catch (e) {
-      console.error('[DB] migration task_reflections copy', e)
-    }
-    database
-      .prepare(`INSERT INTO config (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value`)
-      .run('migration_task_reflections_v1', '1')
+      database
+        .prepare(`INSERT INTO config (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value`)
+        .run('migration_task_reflections_v1', '1')
+    })
+    migrate()
   }
 }
 
 export function openDatabase(dbPath: string): Database.Database {
   if (db) return db
-  db = new Database(dbPath)
-  db.pragma('journal_mode = WAL')
-  const sql = loadSchema() || FALLBACK_SCHEMA
-  db.exec(sql)
-  runMigrations(db)
-  return db
+  const database = new Database(dbPath)
+  try {
+    database.pragma('foreign_keys = ON')
+    database.pragma('journal_mode = WAL')
+    const sql = loadSchema() || FALLBACK_SCHEMA
+    database.exec(sql)
+    runMigrations(database)
+    db = database
+    return database
+  } catch (error) {
+    database.close()
+    throw error
+  }
+}
+
+export function closeDatabase(): void {
+  if (!db) return
+  db.close()
+  db = null
 }
 
 export function getDb(): Database.Database {
@@ -171,46 +193,43 @@ export const taskRepo = {
     return row ? rowToTask(row) : undefined
   },
 
-  create(input: {
-    title: string
-    description?: string
-    category_id?: number | null
-    insight?: string
-    attachment_paths?: string[]
-    status?: TaskStatus
-  }): Task {
+  create(input: TaskCreateInput): Task {
     const d = getDb()
-    const now = new Date().toISOString()
-    const result = d
-      .prepare(
-        `INSERT INTO tasks (title, description, category_id, insight, attachment_paths, status, created_at, updated_at, completed_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
-      )
-      .run(
-        input.title,
-        input.description ?? '',
-        input.category_id ?? null,
-        input.insight ?? '',
-        JSON.stringify(input.attachment_paths ?? []),
-        input.status ?? 'todo',
-        now,
-        now,
-        input.status === 'done' ? now : null
-      )
-    const id = Number(result.lastInsertRowid)
-    return this.get(id)!
+    const createTransaction = d.transaction(() => {
+      const now = new Date().toISOString()
+      const firstReflection = input.first_reflection?.trim() ?? ''
+      const result = d
+        .prepare(
+          `INSERT INTO tasks (title, description, category_id, insight, attachment_paths, status, created_at, updated_at, completed_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        )
+        .run(
+          input.title,
+          input.description ?? '',
+          input.category_id ?? null,
+          firstReflection,
+          JSON.stringify(input.attachment_paths ?? []),
+          input.status ?? 'todo',
+          now,
+          now,
+          input.status === 'done' ? now : null
+        )
+      const id = Number(result.lastInsertRowid)
+      if (firstReflection) {
+        d.prepare(`INSERT INTO task_reflections (task_id, content, created_at) VALUES (?,?,?)`).run(
+          id,
+          firstReflection,
+          now
+        )
+      }
+      return this.get(id)!
+    })
+    return createTransaction()
   },
 
   update(
     id: number,
-    input: Partial<{
-      title: string
-      description: string
-      category_id: number | null
-      insight: string
-      attachment_paths: string[]
-      status: TaskStatus
-    }>
+    input: TaskUpdateInput
   ): Task | undefined {
     const d = getDb()
     const cur = this.get(id)
@@ -220,9 +239,8 @@ export const taskRepo = {
     const description = input.description ?? cur.description
     const category_id =
       input.category_id !== undefined ? input.category_id : cur.category_id
-    const insight = input.insight ?? cur.insight
     const attachment_paths = input.attachment_paths ?? cur.attachment_paths
-    let status = input.status ?? cur.status
+    const status = input.status ?? cur.status
     let completed_at = cur.completed_at
     if (input.status === 'done' && cur.status !== 'done') {
       completed_at = now
@@ -235,7 +253,7 @@ export const taskRepo = {
       title,
       description,
       category_id,
-      insight,
+      cur.insight,
       JSON.stringify(attachment_paths),
       status,
       now,
@@ -293,7 +311,7 @@ export const diaryRepo = {
       .prepare(`SELECT * FROM diaries WHERE date >= ? AND date <= ? ORDER BY date ASC`)
       .all(start, end) as Diary[]
   },
-  upsert(input: { date: string; title?: string; content?: string }): Diary {
+  upsert(input: DiaryUpsertInput): Diary {
     const d = getDb()
     const now = new Date().toISOString()
     const existing = this.getByDate(input.date)
@@ -352,18 +370,17 @@ export const reflectionRepo = {
     if (!c) throw new Error('感悟内容不能为空')
     const d = getDb()
     const now = new Date().toISOString()
-    const r = d.prepare(`INSERT INTO task_reflections (task_id, content, created_at) VALUES (?,?,?)`).run(tid, c, now)
-    const latest = d
-      .prepare(`SELECT content FROM task_reflections WHERE task_id=? ORDER BY created_at DESC LIMIT 1`)
-      .get(tid) as { content: string } | undefined
-    const insightText = latest?.content ?? c
-    d.prepare(`UPDATE tasks SET insight=?, updated_at=? WHERE id=?`).run(insightText, now, tid)
-    return {
-      id: Number(r.lastInsertRowid),
-      task_id: tid,
-      content: c,
-      created_at: now
-    }
+    const addTransaction = d.transaction(() => {
+      const r = d.prepare(`INSERT INTO task_reflections (task_id, content, created_at) VALUES (?,?,?)`).run(tid, c, now)
+      d.prepare(`UPDATE tasks SET insight=?, updated_at=? WHERE id=?`).run(c, now, tid)
+      return {
+        id: Number(r.lastInsertRowid),
+        task_id: tid,
+        content: c,
+        created_at: now
+      }
+    })
+    return addTransaction()
   },
 
   delete(reflectionId: number): boolean {
@@ -375,13 +392,16 @@ export const reflectionRepo = {
       | undefined
     if (!row) return false
     const taskId = row.task_id
-    d.prepare(`DELETE FROM task_reflections WHERE id=?`).run(rid)
-    const now = new Date().toISOString()
-    const latest = d
-      .prepare(`SELECT content FROM task_reflections WHERE task_id=? ORDER BY created_at DESC LIMIT 1`)
-      .get(taskId) as { content: string } | undefined
-    d.prepare(`UPDATE tasks SET insight=?, updated_at=? WHERE id=?`).run(latest?.content ?? '', now, taskId)
-    return true
+    const deleteTransaction = d.transaction(() => {
+      d.prepare(`DELETE FROM task_reflections WHERE id=?`).run(rid)
+      const now = new Date().toISOString()
+      const latest = d
+        .prepare(`SELECT content FROM task_reflections WHERE task_id=? ORDER BY created_at DESC LIMIT 1`)
+        .get(taskId) as { content: string } | undefined
+      d.prepare(`UPDATE tasks SET insight=?, updated_at=? WHERE id=?`).run(latest?.content ?? '', now, taskId)
+      return true
+    })
+    return deleteTransaction()
   }
 }
 

@@ -35,6 +35,49 @@ export interface AiConfig {
   model: string
 }
 
+export interface AiConfigPublic {
+  baseUrl: string
+  model: string
+  hasApiKey: boolean
+}
+
+export interface AiConfigSaveInput {
+  baseUrl: string
+  model: string
+  apiKey?: string
+  clearApiKey?: boolean
+}
+
+export interface TaskCreateInput {
+  title: string
+  description?: string
+  category_id?: number | null
+  attachment_paths?: string[]
+  status?: TaskStatus
+  first_reflection?: string
+}
+
+export type TaskUpdateInput = Partial<
+  Pick<Task, 'title' | 'description' | 'category_id' | 'attachment_paths' | 'status'>
+>
+
+export interface DiaryUpsertInput {
+  date: string
+  title?: string
+  content?: string
+}
+
+export type DiaryExportInput =
+  | { mode: 'one'; date: string; title: string; content: string }
+  | { mode: 'all' }
+
+export type DiaryExportResult = { canceled: true } | { ok: true; path: string }
+
+export type UpdateCheckResult =
+  | { skipped: true; message: string }
+  | { ok: true; current: string; remoteVersion: string | null }
+  | { ok: false; message: string }
+
 /** 单条任务感悟（时间轴一条） */
 export interface TaskReflection {
   id: number

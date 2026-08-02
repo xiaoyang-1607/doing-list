@@ -15,9 +15,12 @@
     "build": "electron-vite build && electron-builder",
     "release": "electron-vite build && electron-builder --publish always",
     "build:vite": "electron-vite build",
+    "typecheck": "vue-tsc --noEmit",
+    "test": "node --experimental-strip-types --test src/main/validation.test.ts src/shared/diaryExcerpt.test.ts",
+    "check": "npm run typecheck && npm test && npm run build:vite",
     "preview": "electron-vite preview",
-    "postinstall": "electron-rebuild -f -w better-sqlite3",
-    "rebuild:native": "electron-rebuild -f -w better-sqlite3",
+    "postinstall": "electron-builder install-app-deps",
+    "rebuild:native": "electron-builder install-app-deps",
     "install:safe": "npm install --ignore-scripts && node node_modules/electron/install.js && npm run postinstall",
     "sync:github": "node scripts/git-sync.mjs",
     "readme:publish": "node scripts/readme-publish.mjs",
@@ -25,23 +28,28 @@
   },
   "dependencies": {
     "better-sqlite3": "^11.7.0",
-    "electron-updater": "^6.8.3",
+    "electron-updater": "6.8.9",
     "vue": "^3.5.13",
     "vue-router": "^4.5.0"
   },
   "devDependencies": {
-    "@electron/rebuild": "^3.7.0",
     "@types/better-sqlite3": "^7.6.13",
     "@vitejs/plugin-vue": "^5.2.1",
     "autoprefixer": "^10.4.20",
     "electron": "^33.2.1",
     "electron-builder": "^25.1.8",
     "electron-vite": "^2.3.0",
-    "postcss": "^8.4.49",
+    "postcss": "8.5.25",
     "tailwindcss": "^3.4.17",
     "typescript": "^5.7.2",
     "vite": "^5.4.11",
     "vue-tsc": "^2.1.10"
+  },
+  "engines": {
+    "node": ">=22.12 <25"
+  },
+  "overrides": {
+    "js-yaml": "4.3.1"
   },
   "build": {
     "appId": "com.doinglist.app",

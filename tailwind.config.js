@@ -4,7 +4,7 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        sans: ['"DM Sans"', 'system-ui', 'sans-serif']
+        sans: ['system-ui', '"Segoe UI"', 'sans-serif']
       },
       colors: {
         surface: {

@@ -1,41 +1,33 @@
 <script setup lang="ts">
-import { onMounted, ref, watch } from 'vue'
-import { formatLocalDateYmd, formatStoredAsLocal } from '../../shared/datetime'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { onBeforeRouteLeave } from 'vue-router'
+import { formatLocalDateYmd } from '../../shared/datetime'
 import type { Diary, DiaryTaskHint } from '../../shared/types'
+import {
+  buildTaskExcerpt,
+  stripImportedTaskBlock,
+  TASK_BLOCK_START
+} from '../../shared/diaryExcerpt'
 import { showToast } from '../composables/toast'
 import { msgFromCatch } from '../utils/error'
 import { toPlain } from '../utils/ipcPayload'
 
 const today = formatLocalDateYmd(new Date())
 
-/** 去掉正文末尾由「引入任务摘录」写入的块（含旧版「今日任务摘录」） */
-function stripImportedTaskBlock(text: string): string {
-  return text.replace(/\n?—— (?:.+ 任务摘录|今日任务摘录) ——[\s\S]*$/, '').trimEnd()
-}
-
-function formatTaskHintsBlock(hints: DiaryTaskHint[]): string {
-  return hints
-    .map((h: DiaryTaskHint) => {
-      const lines: string[] = [`- ${h.title}`]
-      const dayRefs = h.reflections_on_day ?? []
-      if (dayRefs.length) {
-        for (const r of dayRefs) {
-          const t = formatStoredAsLocal(r.created_at)
-          lines.push(`  [${t}] ${r.content}`)
-        }
-      } else if (h.insight?.trim()) {
-        lines.push(`  心得（摘要）：${h.insight}`)
-      }
-      return lines.join('\n')
-    })
-    .join('\n\n')
-}
-
 const diaries = ref<Diary[]>([])
 const selectedDate = ref(today)
 const title = ref('')
 const content = ref('')
 const saving = ref(false)
+const loadingDay = ref(false)
+const persistedTitle = ref('')
+const persistedContent = ref('')
+const dirty = computed(
+  () => title.value !== persistedTitle.value || content.value !== persistedContent.value
+)
+let autoSaveTimer: number | undefined
+let loadGeneration = 0
+let saveInFlight: Promise<boolean> | null = null
 
 const aiStart = ref('')
 const aiEnd = ref('')
@@ -43,17 +35,29 @@ const aiLoading = ref(false)
 const aiText = ref('')
 
 async function loadList() {
-  diaries.value = await window.api.diaries.list()
+  try {
+    diaries.value = await window.api.diaries.list()
+  } catch (e) {
+    showToast(`加载日记列表失败：${msgFromCatch(e)}`, 'error')
+  }
 }
 
-async function loadDay() {
-  const d = await window.api.diaries.getByDate(selectedDate.value)
-  if (d) {
-    title.value = d.title
-    content.value = d.content
-  } else {
-    title.value = ''
-    content.value = ''
+async function loadDay(date = selectedDate.value): Promise<boolean> {
+  const generation = ++loadGeneration
+  loadingDay.value = true
+  try {
+    const d = await window.api.diaries.getByDate(date)
+    if (generation !== loadGeneration || date !== selectedDate.value) return false
+    title.value = d?.title ?? ''
+    content.value = d?.content ?? ''
+    persistedTitle.value = title.value
+    persistedContent.value = content.value
+    return true
+  } catch (e) {
+    if (generation === loadGeneration) showToast(`加载日记失败：${msgFromCatch(e)}`, 'error')
+    return false
+  } finally {
+    if (generation === loadGeneration) loadingDay.value = false
   }
 }
 
@@ -66,26 +70,77 @@ onMounted(async () => {
   await loadDay()
 })
 
-watch(selectedDate, loadDay)
+async function persistCurrent(showSuccess: boolean): Promise<boolean> {
+  if (autoSaveTimer !== undefined) window.clearTimeout(autoSaveTimer)
+  autoSaveTimer = undefined
+  if (saveInFlight) await saveInFlight
+  if (!dirty.value) {
+    if (showSuccess) showToast('当前内容已保存', 'info')
+    return true
+  }
+  const snapshot = {
+    date: selectedDate.value,
+    title: title.value,
+    content: content.value
+  }
+  saving.value = true
+  const operation = (async () => {
+    try {
+      await window.api.diaries.upsert(toPlain(snapshot))
+      if (selectedDate.value === snapshot.date) {
+        persistedTitle.value = snapshot.title
+        persistedContent.value = snapshot.content
+      }
+      await loadList()
+      if (showSuccess) showToast('日记已保存', 'success')
+      return true
+    } catch (e) {
+      showToast(`保存失败：${msgFromCatch(e)}`, 'error')
+      return false
+    } finally {
+      saving.value = false
+    }
+  })()
+  saveInFlight = operation
+  const saved = await operation
+  if (saveInFlight === operation) saveInFlight = null
+  return saved
+}
 
 async function saveDiary() {
-  saving.value = true
-  try {
-    await window.api.diaries.upsert(
-      toPlain({
-        date: selectedDate.value,
-        title: title.value,
-        content: content.value
-      })
-    )
-    await loadList()
-    showToast('日记已保存', 'success')
-  } catch (e) {
-    showToast(`保存失败：${msgFromCatch(e)}`, 'error')
-  } finally {
-    saving.value = false
-  }
+  await persistCurrent(true)
 }
+
+watch([title, content], () => {
+  if (loadingDay.value || !dirty.value) return
+  if (autoSaveTimer !== undefined) window.clearTimeout(autoSaveTimer)
+  autoSaveTimer = window.setTimeout(() => {
+    void persistCurrent(false)
+  }, 1_000)
+})
+
+async function switchDate(date: string) {
+  if (!date || date === selectedDate.value) return
+  const saved = await persistCurrent(false)
+  if (!saved && dirty.value && !confirm('当前日记自动保存失败，仍要切换日期吗？')) return
+  const previousDate = selectedDate.value
+  selectedDate.value = date
+  if (!(await loadDay(date))) selectedDate.value = previousDate
+}
+
+function onDateInput(event: Event) {
+  const date = (event.target as HTMLInputElement).value
+  void switchDate(date)
+}
+
+onBeforeRouteLeave(async () => {
+  const saved = await persistCurrent(false)
+  return saved || !dirty.value || confirm('当前日记保存失败，仍要离开吗？')
+})
+
+onBeforeUnmount(() => {
+  if (autoSaveTimer !== undefined) window.clearTimeout(autoSaveTimer)
+})
 
 async function importTasks() {
   let hints: DiaryTaskHint[]
@@ -99,11 +154,17 @@ async function importTasks() {
     showToast('该日暂无可引入的任务', 'info')
     return
   }
-  const block = formatTaskHintsBlock(hints)
-  const marker = `—— ${selectedDate.value} 任务摘录 ——`
+  const hasUnboundedLegacyBlock =
+    /—— (?:.+ 任务摘录|今日任务摘录) ——/.test(content.value) &&
+    !content.value.includes(TASK_BLOCK_START)
   const userPart = stripImportedTaskBlock(content.value)
-  content.value = userPart ? `${userPart}\n\n${marker}\n${block}\n` : `${marker}\n${block}\n`
-  showToast(`已引入 ${hints.length} 条任务摘要`, 'success')
+  const imported = buildTaskExcerpt(selectedDate.value, hints)
+  content.value = userPart ? `${userPart}\n\n${imported}\n` : `${imported}\n`
+  if (hasUnboundedLegacyBlock) {
+    showToast('检测到无结束边界的旧版摘录；为保护正文已保留，请手动删除旧块一次', 'info', 7_000)
+  } else {
+    showToast(`已引入 ${hints.length} 条任务摘要`, 'success')
+  }
 }
 
 async function exportCurrentDiary() {
@@ -145,7 +206,7 @@ async function runReview() {
 }
 
 function pickDate(d: string) {
-  selectedDate.value = d
+  void switchDate(d)
 }
 </script>
 
@@ -180,9 +241,10 @@ function pickDate(d: string) {
           <div>
             <label class="mb-1 block text-xs text-slate-500">日期</label>
             <input
-              v-model="selectedDate"
+              :value="selectedDate"
               type="date"
               class="rounded-lg border border-surface-border bg-surface px-3 py-2 text-white outline-none focus:border-accent"
+              @change="onDateInput"
             />
           </div>
           <button
@@ -214,6 +276,9 @@ function pickDate(d: string) {
           >
             {{ saving ? '保存中…' : '保存日记' }}
           </button>
+          <span class="text-xs" :class="dirty ? 'text-amber-400' : 'text-slate-600'">
+            {{ dirty ? '等待自动保存…' : '已保存' }}
+          </span>
         </div>
 
         <div>

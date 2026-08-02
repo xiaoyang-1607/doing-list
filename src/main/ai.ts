@@ -6,17 +6,26 @@ export async function openAiChat(
 ): Promise<string> {
   const base = config.baseUrl.replace(/\/$/, '')
   const url = `${base}/chat/completions`
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${config.apiKey}`
-    },
-    body: JSON.stringify({
-      model: config.model || 'gpt-4o-mini',
-      messages
+  let res: Response
+  try {
+    res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${config.apiKey}`
+      },
+      body: JSON.stringify({
+        model: config.model || 'gpt-4o-mini',
+        messages
+      }),
+      signal: AbortSignal.timeout(45_000)
     })
-  })
+  } catch (error) {
+    if (error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError')) {
+      throw new Error('AI 请求超时，请检查网络或接口地址')
+    }
+    throw error
+  }
   if (!res.ok) {
     const t = await res.text()
     throw new Error(`API ${res.status}: ${t.slice(0, 500)}`)

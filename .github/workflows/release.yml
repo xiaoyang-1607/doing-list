@@ -17,10 +17,13 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: npm
 
       - run: npm ci
+
+      - name: Quality checks
+        run: npm run typecheck && npm test
 
       - name: Build & publish to GitHub Releases
         run: npm run release

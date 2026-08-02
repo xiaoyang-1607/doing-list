@@ -6,14 +6,19 @@ import { msgFromCatch } from '../utils/error'
 const baseUrl = ref('https://api.openai.com/v1')
 const apiKey = ref('')
 const model = ref('gpt-4o-mini')
+const hasApiKey = ref(false)
+const clearApiKey = ref(false)
 const saving = ref(false)
 const updateChecking = ref(false)
 const updateHint = ref('')
 
 async function load() {
-  baseUrl.value = (await window.api.config.get('ai_base_url')) || 'https://api.openai.com/v1'
-  apiKey.value = await window.api.config.get('ai_api_key')
-  model.value = (await window.api.config.get('ai_model')) || 'gpt-4o-mini'
+  const config = await window.api.aiConfig.get()
+  baseUrl.value = config.baseUrl
+  model.value = config.model
+  hasApiKey.value = config.hasApiKey
+  apiKey.value = ''
+  clearApiKey.value = false
 }
 
 onMounted(load)
@@ -21,9 +26,15 @@ onMounted(load)
 async function save() {
   saving.value = true
   try {
-    await window.api.config.set('ai_base_url', baseUrl.value.trim())
-    await window.api.config.set('ai_api_key', apiKey.value)
-    await window.api.config.set('ai_model', model.value.trim())
+    const config = await window.api.aiConfig.save({
+      baseUrl: baseUrl.value.trim(),
+      model: model.value.trim(),
+      apiKey: apiKey.value || undefined,
+      clearApiKey: clearApiKey.value
+    })
+    hasApiKey.value = config.hasApiKey
+    apiKey.value = ''
+    clearApiKey.value = false
     showToast('AI 设置已保存', 'success')
   } catch (e) {
     showToast(`保存失败：${msgFromCatch(e)}`, 'error')
@@ -88,8 +99,12 @@ async function checkUpdate() {
             type="password"
             autocomplete="off"
             class="w-full rounded-lg border border-surface-border bg-surface px-3 py-2 text-white outline-none focus:border-accent"
-            placeholder="sk-…"
+            :placeholder="hasApiKey ? '已安全保存；留空则保持不变' : '填写 API Key'"
           />
+          <label v-if="hasApiKey" class="mt-2 flex items-center gap-2 text-xs text-slate-500">
+            <input v-model="clearApiKey" type="checkbox" />
+            清除已保存的 API Key
+          </label>
         </div>
         <div>
           <label class="mb-1 block text-xs font-medium text-slate-500">Model Name</label>

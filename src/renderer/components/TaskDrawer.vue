@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import type { Category, TaskReflection, TaskStatus } from '../../shared/types'
 import { categoriesRevision } from '../composables/categoriesSync'
 import { formatStoredAsLocal } from '../../shared/datetime'
@@ -22,6 +22,7 @@ const firstReflectionDraft = ref('')
 const newReflectionInput = ref('')
 const reflections = ref<TaskReflection[]>([])
 const attachmentPaths = ref<string[]>([])
+const sessionAttachmentPaths = ref<string[]>([])
 const status = ref<TaskStatus>('todo')
 const resolvedUrls = ref<Record<string, string>>({})
 const aiResult = ref('')
@@ -62,6 +63,7 @@ async function loadReflections() {
 async function loadTask() {
   newReflectionInput.value = ''
   firstReflectionDraft.value = ''
+  sessionAttachmentPaths.value = []
   if (props.taskId === null) {
     title.value = ''
     description.value = ''
@@ -135,6 +137,26 @@ watch(categoriesRevision, () => {
 
 onMounted(loadCategories)
 
+async function discardSessionAttachments() {
+  const paths = [...sessionAttachmentPaths.value]
+  sessionAttachmentPaths.value = []
+  if (!paths.length || !window.api) return
+  try {
+    await window.api.attachments.discard(paths)
+  } catch (e) {
+    console.error('[Doing List] 回收未保存附件失败', e)
+  }
+}
+
+async function closeWithoutSaving() {
+  await discardSessionAttachments()
+  emit('close')
+}
+
+onBeforeUnmount(() => {
+  void discardSessionAttachments()
+})
+
 async function save() {
   if (!window.api) {
     showToast('无法连接主进程，请用 Electron 打开应用', 'error')
@@ -150,20 +172,16 @@ async function save() {
     const cat =
       categorySelect.value === '' ? null : Number.parseInt(categorySelect.value, 10)
     if (isNew.value) {
-      const created = await window.api.tasks.create(
+      await window.api.tasks.create(
         toPlain({
           title: t,
           description: description.value,
           category_id: cat,
-          insight: '',
           attachment_paths: attachmentPaths.value,
-          status: status.value
+          status: status.value,
+          first_reflection: firstReflectionDraft.value.trim() || undefined
         })
       )
-      const first = firstReflectionDraft.value.trim()
-      if (first) {
-        await window.api.reflections.add(created.id, first)
-      }
     } else {
       await window.api.tasks.update(
         props.taskId!,
@@ -176,6 +194,7 @@ async function save() {
         })
       )
     }
+    sessionAttachmentPaths.value = []
     showToast('已保存', 'success')
     emit('saved')
     emit('close')
@@ -191,6 +210,7 @@ async function removeTask() {
   if (!props.taskId || !confirm('确定删除此任务？')) return
   try {
     await window.api.tasks.delete(props.taskId)
+    await discardSessionAttachments()
     showToast('已删除任务', 'info')
     emit('saved')
     emit('close')
@@ -203,7 +223,13 @@ async function pickImages() {
   try {
     const paths = await window.api.attachments.pickMany()
     if (!paths.length) return
+    if (attachmentPaths.value.length + paths.length > 20) {
+      await window.api.attachments.discard(paths)
+      showToast('每个任务最多添加 20 张图片', 'info')
+      return
+    }
     attachmentPaths.value = [...attachmentPaths.value, ...paths]
+    sessionAttachmentPaths.value = [...sessionAttachmentPaths.value, ...paths]
     await resolvePaths(attachmentPaths.value)
   } catch (e) {
     showToast(`添加图片失败：${msgFromCatch(e)}`, 'error')
@@ -223,7 +249,13 @@ function onDrop(e: DragEvent) {
   void (async () => {
     try {
       const rel = await window.api.attachments.fromPaths(paths)
+      if (attachmentPaths.value.length + rel.length > 20) {
+        await window.api.attachments.discard(rel)
+        showToast('每个任务最多添加 20 张图片', 'info')
+        return
+      }
       attachmentPaths.value = [...attachmentPaths.value, ...rel]
+      sessionAttachmentPaths.value = [...sessionAttachmentPaths.value, ...rel]
       await resolvePaths(attachmentPaths.value)
     } catch (e) {
       showToast(`拖拽图片失败：${msgFromCatch(e)}`, 'error')
@@ -236,7 +268,13 @@ function onDragOver(e: DragEvent) {
 }
 
 function removeAttachment(idx: number) {
-  attachmentPaths.value.splice(idx, 1)
+  const [removed] = attachmentPaths.value.splice(idx, 1)
+  if (removed && sessionAttachmentPaths.value.includes(removed)) {
+    sessionAttachmentPaths.value = sessionAttachmentPaths.value.filter((path) => path !== removed)
+    void window.api.attachments.discard([removed]).catch((error) => {
+      console.error('[Doing List] 回收附件失败', error)
+    })
+  }
   const next = [...attachmentPaths.value]
   void resolvePaths(next)
 }
@@ -284,7 +322,7 @@ async function runAi() {
                 type="button"
                 class="rounded-lg p-2 text-slate-400 hover:bg-white/10 hover:text-white"
                 aria-label="关闭"
-                @click="emit('close')"
+                @click="closeWithoutSaving"
               >
                 ✕
               </button>
@@ -442,7 +480,7 @@ async function runAi() {
                 <button
                   type="button"
                   class="rounded-lg border border-surface-border px-4 py-2 text-sm hover:bg-white/5"
-                  @click="emit('close')"
+                  @click="closeWithoutSaving"
                 >
                   取消
                 </button>

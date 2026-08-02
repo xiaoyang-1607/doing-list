@@ -36,7 +36,7 @@ doing-list/
 
 ## 环境要求
 
-- **Node.js** 20 LTS（与 GitHub Actions 一致）
+- **Node.js** 22 LTS（与 GitHub Actions 一致）
 - **Windows**（当前主要开发与打包目标）
 - Git
 
