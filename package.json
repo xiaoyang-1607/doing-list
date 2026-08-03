@@ -22,6 +22,7 @@
     "verify:release": "node scripts/verify-release.mjs",
     "verify:package": "node scripts/verify-package.mjs",
     "preview": "electron-vite preview",
+    "postinstall": "node node_modules/electron/install.js",
     "sync:github": "node scripts/git-sync.mjs",
     "readme:publish": "node scripts/readme-publish.mjs",
     "cleanup:installers": "node scripts/cleanup-installers.mjs"
