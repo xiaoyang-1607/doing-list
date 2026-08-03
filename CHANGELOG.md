@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-08-03
+
 ### 安全
 
 - 升级 Electron、Vite、electron-vite、electron-builder 和 SQLite 原生依赖，移除已知高危/严重依赖链。
@@ -39,5 +41,6 @@
 - 防止重复导入自动生成的任务摘要。
 - 修复早期安装包的启动与打包问题。
 
-[Unreleased]: https://github.com/xiaoyang-1607/doing-list/compare/v0.1.2...HEAD
+[Unreleased]: https://github.com/xiaoyang-1607/doing-list/compare/v0.1.3...HEAD
+[0.1.3]: https://github.com/xiaoyang-1607/doing-list/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/xiaoyang-1607/doing-list/releases/tag/v0.1.2

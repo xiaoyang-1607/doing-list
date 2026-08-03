@@ -6,7 +6,7 @@
 
 Doing List 是一款面向 Windows 的本地任务与日记桌面应用。它把待办、分类、每日感悟和复盘放在一个轻量界面里；除用户主动使用 AI 功能外，业务数据不会上传到云端。
 
-最新稳定版：[v0.1.2](https://github.com/xiaoyang-1607/doing-list/releases/tag/v0.1.2)。`master` 分支包含尚未发布的质量与安全改进，详情见 [CHANGELOG.md](CHANGELOG.md)。
+最新稳定版：[v0.1.3](https://github.com/xiaoyang-1607/doing-list/releases/tag/v0.1.3)。版本变化见 [CHANGELOG.md](CHANGELOG.md)。
 
 ## 功能
 
@@ -24,16 +24,10 @@ Doing List 是一款面向 Windows 的本地任务与日记桌面应用。它把
 2. 下载 `Doing-List-Setup-x.x.x.exe`，不要下载源码压缩包作为安装程序。
 3. 运行安装程序。当前安装包尚未进行商业代码签名，Windows 可能显示“未知发布者”；请确认下载地址属于本仓库并核对校验值。
 
-v0.1.2 安装程序 SHA-256：
-
-```text
-2ddd7e5556c55a256fb98841fc7dea01a29da307b6877dcaa0944bfa4a10b83e  Doing-List-Setup-0.1.2.exe
-```
-
-PowerShell 校验命令：
+从 v0.1.3 起，每个 Release 都会附带 `SHA256SUMS.txt`。下载该文件后，使用 PowerShell 计算安装包校验值，并与清单中的对应行比较：
 
 ```powershell
-Get-FileHash -Algorithm SHA256 .\Doing-List-Setup-0.1.2.exe
+Get-FileHash -Algorithm SHA256 .\Doing-List-Setup-0.1.3.exe
 ```
 
 请勿使用 v0.1.0，该版本存在已知启动问题。推荐始终安装最新 Release。
