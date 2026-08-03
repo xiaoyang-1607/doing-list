@@ -42,7 +42,9 @@ jobs:
       - name: Generate SHA-256 checksums
         shell: pwsh
         run: |
-          $assets = Get-ChildItem release -File | Where-Object { $_.Name -match '\.(exe|blockmap|yml)$' }
+          $assets = Get-ChildItem release -File | Where-Object {
+            $_.Name -match '\.(exe|blockmap)$' -or $_.Name -eq 'latest.yml'
+          }
           if ($assets.Count -eq 0) { throw 'No release assets were generated.' }
           $lines = foreach ($asset in $assets) {
             $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $asset.FullName).Hash.ToLowerInvariant()
@@ -63,5 +65,8 @@ jobs:
             gh release create $tag --verify-tag --title "Doing List v$version" --generate-notes
           }
           Get-ChildItem release -File |
-            Where-Object { $_.Name -match '\.(exe|blockmap|yml|txt)$' } |
+            Where-Object {
+              $_.Name -match '\.(exe|blockmap)$' -or
+              $_.Name -in @('latest.yml', 'SHA256SUMS.txt')
+            } |
             ForEach-Object { gh release upload $tag $_.FullName --clobber }
