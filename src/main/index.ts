@@ -19,6 +19,7 @@ import {
 } from './attachments'
 import { openAiChat } from './ai'
 import { formatStoredAsLocal } from '../shared/datetime'
+import { diaryContentForDisplay } from '../shared/diaryExcerpt'
 import type { DiaryExportInput } from '../shared/types'
 import { setupUpdater } from './updater'
 import { getPrivateAiConfig, getPublicAiConfig, saveAiConfig } from './aiConfigStore'
@@ -224,7 +225,7 @@ app.whenReady().then(() => {
 
       const toMd = (date: string, title: string, body: string) => {
         const heading = title.trim() || '（无标题）'
-        return `# ${date} ${heading}\n\n${body.trim()}\n`
+        return `# ${date} ${heading}\n\n${diaryContentForDisplay(body).trim()}\n`
       }
 
       let markdown: string
@@ -324,7 +325,9 @@ app.whenReady().then(() => {
     if (!cfg.apiKey) throw new Error('请先在设置中配置 AI 的 API Key')
     const diaries = diaryRepo.getBetween(start, end)
     if (!diaries.length) throw new Error('该时间段内没有日记内容')
-    const blob = diaries.map((d) => `【${d.date}】${d.title}\n${d.content}`).join('\n\n---\n\n')
+    const blob = diaries
+      .map((d) => `【${d.date}】${d.title}\n${diaryContentForDisplay(d.content)}`)
+      .join('\n\n---\n\n')
     const system =
       '你是心理咨询师兼效率顾问。阅读用户在这段时间的日记，用温暖、专业的中文总结：最近活动与主题、情绪与心理状态、1～3 条温和建议。控制在 400 字内。'
     return openAiChat(cfg, [

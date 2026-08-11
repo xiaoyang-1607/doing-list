@@ -5,8 +5,9 @@ import { formatLocalDateYmd } from '../../shared/datetime'
 import type { Diary, DiaryTaskHint } from '../../shared/types'
 import {
   buildTaskExcerpt,
-  stripImportedTaskBlock,
-  TASK_BLOCK_START
+  diaryContentForDisplay,
+  serializeDiaryContent,
+  splitDiaryContent
 } from '../../shared/diaryExcerpt'
 import { showToast } from '../composables/toast'
 import { msgFromCatch } from '../utils/error'
@@ -18,12 +19,14 @@ const diaries = ref<Diary[]>([])
 const selectedDate = ref(today)
 const title = ref('')
 const content = ref('')
+const taskExcerpt = ref('')
 const saving = ref(false)
 const loadingDay = ref(false)
 const persistedTitle = ref('')
 const persistedContent = ref('')
+const serializedContent = computed(() => serializeDiaryContent(content.value, taskExcerpt.value))
 const dirty = computed(
-  () => title.value !== persistedTitle.value || content.value !== persistedContent.value
+  () => title.value !== persistedTitle.value || serializedContent.value !== persistedContent.value
 )
 let autoSaveTimer: number | undefined
 let loadGeneration = 0
@@ -48,10 +51,13 @@ async function loadDay(date = selectedDate.value): Promise<boolean> {
   try {
     const d = await window.api.diaries.getByDate(date)
     if (generation !== loadGeneration || date !== selectedDate.value) return false
+    const storedContent = d?.content ?? ''
+    const parts = splitDiaryContent(storedContent)
     title.value = d?.title ?? ''
-    content.value = d?.content ?? ''
+    content.value = parts.userContent
+    taskExcerpt.value = parts.taskExcerpt
     persistedTitle.value = title.value
-    persistedContent.value = content.value
+    persistedContent.value = serializeDiaryContent(parts.userContent, parts.taskExcerpt)
     return true
   } catch (e) {
     if (generation === loadGeneration) showToast(`加载日记失败：${msgFromCatch(e)}`, 'error')
@@ -81,7 +87,7 @@ async function persistCurrent(showSuccess: boolean): Promise<boolean> {
   const snapshot = {
     date: selectedDate.value,
     title: title.value,
-    content: content.value
+    content: serializedContent.value
   }
   saving.value = true
   const operation = (async () => {
@@ -111,7 +117,7 @@ async function saveDiary() {
   await persistCurrent(true)
 }
 
-watch([title, content], () => {
+watch([title, content, taskExcerpt], () => {
   if (loadingDay.value || !dirty.value) return
   if (autoSaveTimer !== undefined) window.clearTimeout(autoSaveTimer)
   autoSaveTimer = window.setTimeout(() => {
@@ -154,12 +160,8 @@ async function importTasks() {
     showToast('该日暂无可引入的任务', 'info')
     return
   }
-  const hasUnboundedLegacyBlock =
-    /—— (?:.+ 任务摘录|今日任务摘录) ——/.test(content.value) &&
-    !content.value.includes(TASK_BLOCK_START)
-  const userPart = stripImportedTaskBlock(content.value)
-  const imported = buildTaskExcerpt(selectedDate.value, hints)
-  content.value = userPart ? `${userPart}\n\n${imported}\n` : `${imported}\n`
+  const hasUnboundedLegacyBlock = /—— (?:.+ 任务摘录|今日任务摘录) ——/.test(content.value)
+  taskExcerpt.value = buildTaskExcerpt(selectedDate.value, hints)
   if (hasUnboundedLegacyBlock) {
     showToast('检测到无结束边界的旧版摘录；为保护正文已保留，请手动删除旧块一次', 'info', 7_000)
   } else {
@@ -173,7 +175,7 @@ async function exportCurrentDiary() {
       mode: 'one',
       date: selectedDate.value,
       title: title.value,
-      content: content.value
+      content: diaryContentForDisplay(serializedContent.value)
     })
     if ('canceled' in r && r.canceled) return
     if ('ok' in r && r.ok) showToast('本篇日记已导出', 'success')
@@ -298,6 +300,19 @@ function pickDate(d: string) {
             placeholder="记录今天…"
           />
         </div>
+
+        <section
+          v-if="taskExcerpt"
+          class="rounded-xl border border-surface-border bg-surface-card/60 p-5"
+        >
+          <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <h3 class="text-sm font-semibold text-white">任务摘录（自动生成）</h3>
+            <span class="text-xs text-slate-500">再次引入任务会更新此区域</span>
+          </div>
+          <div class="whitespace-pre-wrap text-sm leading-relaxed text-slate-300">
+            {{ taskExcerpt }}
+          </div>
+        </section>
 
         <section class="rounded-xl border border-surface-border bg-surface-card/60 p-5">
           <h3 class="mb-3 text-sm font-semibold text-white">AI 周 / 月复盘</h3>
